@@ -65,6 +65,7 @@ public class FaissCodecFormatResolver implements CodecFormatResolver {
     @Override
     public KnnVectorsFormat resolve() {
         final int approximateThreshold = KNNSettings.getApproximateThresholdValue(mapperService);
-        return new NativeEngines990KnnVectorsFormat(approximateThreshold, nativeIndexBuildStrategyFactory);
+        final boolean flatVectorDedup = KNNSettings.isFlatVectorDedupEnabled(mapperService);
+        return new NativeEngines990KnnVectorsFormat(approximateThreshold, nativeIndexBuildStrategyFactory, flatVectorDedup);
     }
 }

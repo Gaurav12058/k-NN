@@ -21,7 +21,9 @@ import org.opensearch.common.Nullable;
 import org.opensearch.knn.index.codec.util.NativeMemoryCacheKeyHelper;
 import org.opensearch.knn.index.engine.qframe.QuantizationConfig;
 import org.opensearch.knn.index.VectorDataType;
+import org.opensearch.common.CheckedSupplier;
 import org.opensearch.knn.index.store.IndexInputWithBuffer;
+import org.opensearch.knn.index.vectorvalues.KNNVectorValues;
 
 import java.io.IOException;
 import java.util.Map;
@@ -105,6 +107,14 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
         IndexInputWithBuffer indexInputWithBuffer;
 
         /**
+         * Lazily supplies the field's full-precision vectors, used only to reconstruct native flat storage when
+         * loading a graph-only .faiss produced by FP32 flat-vector deduplication. Invoked only if native needs it
+         * (graph-only index); null when reconstruction cannot apply.
+         */
+        @Getter
+        CheckedSupplier<KNNVectorValues<?>, IOException> knnVectorValuesSupplier;
+
+        /**
          * Constructor
          *
          * @param directory Lucene directory to create required IndexInput/IndexOutput to access files.
@@ -141,12 +151,37 @@ public abstract class NativeMemoryEntryContext<T extends NativeMemoryAllocation>
             String openSearchIndexName,
             String modelId
         ) {
+            this(directory, vectorIndexCacheKey, indexLoadStrategy, parameters, openSearchIndexName, modelId, null);
+        }
+
+        /**
+         * Constructor
+         *
+         * @param directory Lucene directory to create required IndexInput/IndexOutput to access files.
+         * @param vectorIndexCacheKey Cache key for {@link NativeMemoryCacheManager}. It must contain a vector file name.
+         * @param indexLoadStrategy strategy to load index into memory
+         * @param parameters load time parameters
+         * @param openSearchIndexName opensearch index associated with index
+         * @param modelId model to be loaded. If none available, pass null
+         * @param knnVectorValuesSupplier lazily supplies full-precision vectors to reconstruct native flat storage for
+         *                        a graph-only (FP32 flat-vector deduped) .faiss. Pass null when not applicable.
+         */
+        public IndexEntryContext(
+            Directory directory,
+            String vectorIndexCacheKey,
+            NativeMemoryLoadStrategy.IndexLoadStrategy indexLoadStrategy,
+            Map<String, Object> parameters,
+            String openSearchIndexName,
+            String modelId,
+            CheckedSupplier<KNNVectorValues<?>, IOException> knnVectorValuesSupplier
+        ) {
             super(vectorIndexCacheKey);
             this.directory = directory;
             this.indexLoadStrategy = indexLoadStrategy;
             this.openSearchIndexName = openSearchIndexName;
             this.parameters = parameters;
             this.modelId = modelId;
+            this.knnVectorValuesSupplier = knnVectorValuesSupplier;
         }
 
         @Override
